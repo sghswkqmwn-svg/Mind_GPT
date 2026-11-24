@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">MindGPT</string>
+    <string name="tagline">The Ultimate Minecraft AI Assistant</string>
+    <string name="welcome_title">Welcome to MindGPT</string>
+    <string name="footer_credit">Created by Loyal LP</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="greeting_morning">Good Morning</string>
+    <string name="greeting_afternoon">Good Afternoon</string>
+    <string name="greeting_evening">Good Evening</string>
+    <string name="error_network_offline">You are offline. Viewing cached chats and projects.</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+</resources>

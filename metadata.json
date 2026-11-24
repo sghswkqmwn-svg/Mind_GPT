@@ -1,0 +1,6 @@
+{
+  "name": "MindGPT",
+  "description": "The Ultimate Minecraft AI Assistant created by Loyal LP — featuring Minecraft AI chat, build/command/datapack/plugin generators, cloud sync, and server management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

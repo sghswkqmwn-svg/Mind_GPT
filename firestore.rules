@@ -1,0 +1,256 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // Entity Validation Helpers
+    function isValidUserProfile(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.displayName is string &&
+             data.displayName.size() >= 1 &&
+             data.displayName.size() <= 100 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidChatThread(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.title is string &&
+             data.title.size() >= 1 &&
+             data.title.size() <= 120 &&
+             data.lastMessagePreview is string &&
+             data.lastMessagePreview.size() <= 300 &&
+             data.category is string &&
+             data.category.size() >= 1 &&
+             data.category.size() <= 40 &&
+             data.pinned is bool &&
+             data.messageCount is int &&
+             data.messageCount >= 0 &&
+             data.messageCount <= 100000 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidChatMessage(data, userId, chatId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.chatId is string &&
+             data.chatId == chatId &&
+             data.role in ['user', 'model'] &&
+             data.content is string &&
+             data.content.size() <= 50000 &&
+             data.feedback in ['none', 'like', 'dislike'] &&
+             (!('toolTag' in data) || (data.toolTag is string && data.toolTag.size() <= 60)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMinecraftProject(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.title is string &&
+             data.title.size() >= 1 &&
+             data.title.size() <= 120 &&
+             data.toolType is string &&
+             data.toolType.size() >= 1 &&
+             data.toolType.size() <= 60 &&
+             data.minecraftEdition is string &&
+             data.minecraftEdition.size() >= 1 &&
+             data.minecraftEdition.size() <= 30 &&
+             data.minecraftVersion is string &&
+             data.minecraftVersion.size() >= 1 &&
+             data.minecraftVersion.size() <= 30 &&
+             data.promptSummary is string &&
+             data.promptSummary.size() <= 500 &&
+             data.content is string &&
+             data.content.size() >= 1 &&
+             data.content.size() <= 50000 &&
+             data.pinned is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidServerProfile(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.name is string &&
+             data.name.size() >= 1 &&
+             data.name.size() <= 80 &&
+             data.host is string &&
+             data.host.size() >= 1 &&
+             data.host.size() <= 255 &&
+             data.gamePort is int &&
+             data.gamePort >= 1 &&
+             data.gamePort <= 65535 &&
+             data.rconPort is int &&
+             data.rconPort >= 1 &&
+             data.rconPort <= 65535 &&
+             data.panelUrl is string &&
+             data.panelUrl.size() <= 300 &&
+             data.connectionMode in ['PANEL_HTTPS', 'RCON_TCP', 'PING_ONLY'] &&
+             data.lastStatus is string &&
+             data.lastStatus.size() <= 60 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // 1. User Profile Document
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // 2. Chat Threads Subcollection
+      match /chats/{chatId} {
+        allow get: if isOwner(userId) && isValidId(chatId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(chatId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'lastMessagePreview', 'category', 'pinned', 'messageCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'lastMessagePreview', 'category', 'pinned', 'messageCount', 'createdAt', 'updatedAt']) &&
+                         isValidChatThread(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(chatId) &&
+                         isValidChatThread(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['pinned', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['lastMessagePreview', 'messageCount', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'lastMessagePreview', 'category', 'pinned', 'messageCount', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(chatId);
+
+        // 3. Chat Messages Subcollection
+        match /messages/{messageId} {
+          allow get: if isOwner(userId) && isValidId(chatId) && isValidId(messageId);
+          allow list: if isOwner(userId) && isValidId(chatId);
+
+          allow create: if isOwner(userId) &&
+                           isValidId(chatId) &&
+                           isValidId(messageId) &&
+                           incoming().keys().hasAll(['userId', 'chatId', 'role', 'content', 'feedback', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['userId', 'chatId', 'role', 'content', 'feedback', 'toolTag', 'createdAt', 'updatedAt']) &&
+                           isValidChatMessage(incoming(), userId, chatId);
+
+          allow update: if isOwner(userId) &&
+                           isValidId(chatId) &&
+                           isValidId(messageId) &&
+                           isValidChatMessage(incoming(), userId, chatId) &&
+                           incoming().userId == existing().userId &&
+                           incoming().chatId == existing().chatId &&
+                           incoming().role == existing().role &&
+                           incoming().createdAt == existing().createdAt &&
+                           (
+                             incoming().diff(existing()).affectedKeys().hasOnly(['feedback', 'updatedAt']) ||
+                             incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt']) ||
+                             incoming().diff(existing()).affectedKeys().hasOnly(['content', 'feedback', 'updatedAt'])
+                           );
+
+          allow delete: if isOwner(userId) && isValidId(chatId) && isValidId(messageId);
+        }
+      }
+
+      // 4. Minecraft Cloud Projects Subcollection
+      match /projects/{projectId} {
+        allow get: if isOwner(userId) && isValidId(projectId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(projectId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'toolType', 'minecraftEdition', 'minecraftVersion', 'promptSummary', 'content', 'pinned', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'toolType', 'minecraftEdition', 'minecraftVersion', 'promptSummary', 'content', 'pinned', 'createdAt', 'updatedAt']) &&
+                         isValidMinecraftProject(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(projectId) &&
+                         isValidMinecraftProject(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['pinned', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'promptSummary', 'minecraftEdition', 'minecraftVersion', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(projectId);
+      }
+
+      // 5. Minecraft Server Profiles Subcollection (No passwords/tokens in Firestore)
+      match /servers/{serverId} {
+        allow get: if isOwner(userId) && isValidId(serverId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(serverId) &&
+                         incoming().keys().hasAll(['userId', 'name', 'host', 'gamePort', 'rconPort', 'panelUrl', 'connectionMode', 'lastStatus', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'host', 'gamePort', 'rconPort', 'panelUrl', 'connectionMode', 'lastStatus', 'createdAt', 'updatedAt']) &&
+                         isValidServerProfile(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(serverId) &&
+                         isValidServerProfile(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['lastStatus', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['name', 'host', 'gamePort', 'rconPort', 'panelUrl', 'connectionMode', 'lastStatus', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(serverId);
+      }
+    }
+  }
+}

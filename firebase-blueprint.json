@@ -1,0 +1,239 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated MindGPT user profile metadata.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID matching the document ID."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name from Google Sign-In."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "displayName", "createdAt", "updatedAt"]
+    },
+    "ChatThread": {
+      "title": "ChatThread",
+      "description": "A Minecraft AI chat conversation thread belonging to a user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID."
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title of the chat thread."
+        },
+        "lastMessagePreview": {
+          "type": "string",
+          "description": "Short preview of the latest message."
+        },
+        "category": {
+          "type": "string",
+          "description": "Minecraft tool or general chat category tag."
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the chat is pinned to the top of history."
+        },
+        "messageCount": {
+          "type": "integer",
+          "description": "Number of messages in the thread."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "title", "lastMessagePreview", "category", "pinned", "messageCount", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual message inside a user's chat thread.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID."
+        },
+        "chatId": {
+          "type": "string",
+          "description": "Parent chat thread document ID."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "model"],
+          "description": "Sender role."
+        },
+        "content": {
+          "type": "string",
+          "description": "Markdown message body."
+        },
+        "feedback": {
+          "type": "string",
+          "enum": ["none", "like", "dislike"],
+          "description": "User rating on assistant response."
+        },
+        "toolTag": {
+          "type": "string",
+          "description": "Optional Minecraft feature tag."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "chatId", "role", "content", "feedback", "createdAt", "updatedAt"]
+    },
+    "MinecraftProject": {
+      "title": "MinecraftProject",
+      "description": "Cloud-saved Minecraft build, schematic, command, datapack, or plugin project.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID."
+        },
+        "title": {
+          "type": "string",
+          "description": "Project title."
+        },
+        "toolType": {
+          "type": "string",
+          "description": "Generator category such as worldedit, spawn, command, datapack, plugin."
+        },
+        "minecraftEdition": {
+          "type": "string",
+          "description": "Target Minecraft edition (Java or Bedrock)."
+        },
+        "minecraftVersion": {
+          "type": "string",
+          "description": "Target Minecraft version."
+        },
+        "promptSummary": {
+          "type": "string",
+          "description": "Summary of the prompt parameters."
+        },
+        "content": {
+          "type": "string",
+          "description": "Generated Minecraft blueprint, code, or instructions."
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the project is pinned."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "title", "toolType", "minecraftEdition", "minecraftVersion", "promptSummary", "content", "pinned", "createdAt", "updatedAt"]
+    },
+    "ServerProfile": {
+      "title": "ServerProfile",
+      "description": "Non-secret Minecraft server connection metadata synced to cloud.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Friendly server name."
+        },
+        "host": {
+          "type": "string",
+          "description": "Server hostname or IP."
+        },
+        "gamePort": {
+          "type": "integer",
+          "description": "Minecraft server game port (default 25565)."
+        },
+        "rconPort": {
+          "type": "integer",
+          "description": "RCON TCP port (default 25575)."
+        },
+        "panelUrl": {
+          "type": "string",
+          "description": "Optional HTTPS panel endpoint URL."
+        },
+        "connectionMode": {
+          "type": "string",
+          "enum": ["PANEL_HTTPS", "RCON_TCP", "PING_ONLY"],
+          "description": "Connection protocol mode."
+        },
+        "lastStatus": {
+          "type": "string",
+          "description": "Last observed connection check status."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "name", "host", "gamePort", "rconPort", "panelUrl", "connectionMode", "lastStatus", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Root user profile document."
+    },
+    "/users/{userId}/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/ChatThread" },
+      "description": "User's synced AI chat conversations."
+    },
+    "/users/{userId}/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messages inside a user's AI chat conversation."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/MinecraftProject" },
+      "description": "User's cloud-saved Minecraft projects."
+    },
+    "/users/{userId}/servers/{serverId}": {
+      "schema": { "$ref": "#/entities/ServerProfile" },
+      "description": "User's saved Minecraft server connection profiles (secrets kept locally on device)."
+    }
+  }
+}
