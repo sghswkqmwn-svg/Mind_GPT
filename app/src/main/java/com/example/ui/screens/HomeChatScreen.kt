@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,12 +71,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.R
 import com.example.core.ExportHelper
 import com.example.core.TtsHelper
@@ -198,8 +198,11 @@ fun HomeChatScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.img_launcher_foreground),
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(R.drawable.img_launcher_foreground)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = "MindGPT Icon",
                             modifier = Modifier
                                 .size(38.dp)
@@ -353,6 +356,11 @@ fun HomeChatScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.weight(1f)
                     )
+                    if (!isGenerating && messages.lastOrNull()?.role == "user") {
+                        TextButton(onClick = { viewModel.retryLastUserPrompt() }) {
+                            Text("Retry")
+                        }
+                    }
                     TextButton(onClick = { viewModel.clearError() }) {
                         Text("Dismiss")
                     }

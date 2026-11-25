@@ -82,6 +82,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 
 enum class MindGptDestination(
     val route: String,
@@ -103,23 +104,28 @@ fun MindGptRoot(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val credentialManager = remember(context) { CredentialManager.create(context) }
+    var credentialManager by remember { mutableStateOf<CredentialManager?>(null) }
 
     var showSplash by remember { mutableStateOf(true) }
-    var currentUser by remember { mutableStateOf<FirebaseUser?>(Firebase.auth.currentUser) }
+    var currentUser by remember { mutableStateOf<FirebaseUser?>(null) }
 
     DisposableEffect(Unit) {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            currentUser = auth.currentUser
+        val auth = Firebase.auth
+        currentUser = auth.currentUser
+        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            currentUser = firebaseAuth.currentUser
         }
-        Firebase.auth.addAuthStateListener(listener)
-        onDispose { Firebase.auth.removeAuthStateListener(listener) }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
     }
 
     LaunchedEffect(Unit) {
+        yield()
+        val cm = CredentialManager.create(context)
+        credentialManager = cm
         attemptAutoSignIn(
             context = context,
-            credentialManager = credentialManager,
+            credentialManager = cm,
             onAuthSuccess = { currentUser = Firebase.auth.currentUser },
             onUnauthenticated = {},
             scope = scope
@@ -148,7 +154,8 @@ fun MindGptRoot(
                         onSelectTheme = { mode -> scope.launch { themePrefs.setThemeMode(mode) } },
                         onToggleAutoScroll = { enabled -> scope.launch { themePrefs.setAutoScroll(enabled) } },
                         onSignOut = {
-                            signOut(credentialManager, scope) {
+                            val cm = credentialManager ?: CredentialManager.create(context)
+                            signOut(cm, scope) {
                                 currentUser = null
                             }
                         }

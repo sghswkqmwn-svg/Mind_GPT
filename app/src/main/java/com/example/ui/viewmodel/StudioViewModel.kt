@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.ai.MinecraftAiService
+import com.example.data.ai.PartialStreamTimeoutException
 import com.example.data.firebase.MindGptRepository
 import com.example.data.model.MinecraftProject
 import com.example.data.model.MinecraftTool
@@ -104,6 +105,12 @@ class StudioViewModel(
                     .collect { partial ->
                         _generatedOutput.value = partial
                     }
+            } catch (e: PartialStreamTimeoutException) {
+                Log.w(TAG, "Tool generation paused on timeout with partial output", e)
+                if (e.partialText.isNotBlank()) {
+                    _generatedOutput.value = e.partialText
+                }
+                _errorMessage.value = e.localizedMessage ?: "Generation timed out."
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

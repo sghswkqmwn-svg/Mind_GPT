@@ -9,7 +9,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,10 +39,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.R
 import com.example.ui.theme.DiamondCyan
 import com.example.ui.theme.EmeraldGlow
@@ -54,16 +55,12 @@ import kotlinx.coroutines.delay
 fun SplashScreen(
     onFinished: () -> Unit,
 ) {
-    var visible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var fadingOut by remember { mutableStateOf(false) }
 
     val contentAlpha by animateFloatAsState(
-        targetValue = when {
-            fadingOut -> 0f
-            visible -> 1f
-            else -> 0f
-        },
-        animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+        targetValue = if (fadingOut) 0f else 1f,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "splash_fade"
     )
 
@@ -88,7 +85,6 @@ fun SplashScreen(
     )
 
     LaunchedEffect(Unit) {
-        visible = true
         delay(1500L)
         fadingOut = true
         delay(450L)
@@ -102,8 +98,11 @@ fun SplashScreen(
             .alpha(contentAlpha)
             .testTag("splash_screen")
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.img_splash_world),
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(R.drawable.img_splash_world)
+                .crossfade(true)
+                .build(),
             contentDescription = "Minecraft animated voxel landscape",
             contentScale = ContentScale.Crop,
             alpha = 0.65f,
@@ -182,8 +181,11 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_launcher_foreground),
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(R.drawable.img_launcher_foreground)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = "MindGPT Logo",
                     modifier = Modifier
                         .size(112.dp)

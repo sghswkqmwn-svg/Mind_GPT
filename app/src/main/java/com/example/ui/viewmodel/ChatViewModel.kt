@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.ai.MinecraftAiService
+import com.example.data.ai.PartialStreamTimeoutException
 import com.example.data.firebase.MindGptRepository
 import com.example.data.model.ChatMessage
 import com.example.data.model.ChatThread
@@ -149,7 +150,8 @@ class ChatViewModel(
             var activeChatId = _selectedChatId.value
 
             try {
-                if (activeChatId.isNullOrBlank()) {
+                val isNewChat = activeChatId.isNullOrBlank()
+                if (isNewChat) {
                     val createRes = repository.createChat(
                         title = cleanPrompt.take(48),
                         category = toolTag ?: "general",
@@ -160,14 +162,6 @@ class ChatViewModel(
                         return@launch
                     }
                     _selectedChatId.value = activeChatId
-
-                    // Generate a crisp AI title in parallel/afterward
-                    launch {
-                        val suggested = aiService.suggestChatTitle(cleanPrompt)
-                        if (suggested.isNotBlank()) {
-                            repository.renameChat(activeChatId, suggested)
-                        }
-                    }
                 }
 
                 _streamingChatId.value = activeChatId
@@ -193,6 +187,29 @@ class ChatViewModel(
                         messageCount = (currentMessages.size + 2).toLong()
                     )
                 }
+
+                if (isNewChat && !activeChatId.isNullOrBlank()) {
+                    launch {
+                        val suggested = aiService.suggestChatTitle(cleanPrompt)
+                        if (suggested.isNotBlank()) {
+                            repository.renameChat(activeChatId, suggested)
+                        }
+                    }
+                }
+            } catch (e: PartialStreamTimeoutException) {
+                Log.w(TAG, "Chat reply paused on timeout with partial text", e)
+                if (!activeChatId.isNullOrBlank() && e.partialText.isNotBlank()) {
+                    val savedPartial = "${e.partialText}\n\n*(Paused — tap Continue to finish)*"
+                    repository.addMessage(activeChatId, "model", savedPartial, toolTag)
+                    repository.updateChatSummary(
+                        chatId = activeChatId,
+                        preview = e.partialText.take(180),
+                        messageCount = (currentMessages.size + 2).toLong()
+                    )
+                    _infoMessage.value = "Response paused; tap Continue to finish."
+                } else {
+                    _actionError.value = e.localizedMessage ?: "Response timed out."
+                }
             } catch (e: CancellationException) {
                 val partial = _streamingText.value.trim()
                 if (partial.isNotEmpty() && !activeChatId.isNullOrBlank()) {
@@ -208,6 +225,63 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "AI generation failed", e)
+                _actionError.value = e.localizedMessage ?: "MindGPT could not generate a reply."
+            } finally {
+                _isGenerating.value = false
+                _streamingText.value = ""
+                _streamingChatId.value = null
+            }
+        }
+    }
+
+    fun retryLastUserPrompt() {
+        val chatId = _selectedChatId.value ?: return
+        if (_isGenerating.value) return
+        val messages = (messagesState.value as? DataUiState.Success)?.data.orEmpty()
+        val lastUserIdx = messages.indexOfLast { it.role == "user" }
+        if (lastUserIdx < 0) return
+        val lastUserMsg = messages[lastUserIdx]
+        val historyBefore = messages.take(lastUserIdx)
+
+        _actionError.value = null
+        generationJob = viewModelScope.launch {
+            _isGenerating.value = true
+            _streamingChatId.value = chatId
+            _streamingText.value = ""
+            try {
+                val fullReply = StringBuilder()
+                aiService.streamChatReply(historyBefore, lastUserMsg.content).collect { partial ->
+                    fullReply.clear()
+                    fullReply.append(partial)
+                    _streamingText.value = partial
+                }
+                val finalText = fullReply.toString().trim()
+                if (finalText.isNotEmpty()) {
+                    repository.addMessage(chatId, "model", finalText, lastUserMsg.toolTag)
+                    repository.updateChatSummary(
+                        chatId = chatId,
+                        preview = finalText.take(180),
+                        messageCount = (messages.size + 1).toLong()
+                    )
+                }
+            } catch (e: PartialStreamTimeoutException) {
+                Log.w(TAG, "Retry paused on timeout with partial text", e)
+                if (e.partialText.isNotBlank()) {
+                    val savedPartial = "${e.partialText}\n\n*(Paused — tap Continue to finish)*"
+                    repository.addMessage(chatId, "model", savedPartial, lastUserMsg.toolTag)
+                    repository.updateChatSummary(
+                        chatId = chatId,
+                        preview = e.partialText.take(180),
+                        messageCount = (messages.size + 1).toLong()
+                    )
+                    _infoMessage.value = "Response paused; tap Continue to finish."
+                } else {
+                    _actionError.value = e.localizedMessage ?: "Retry timed out."
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Retry failed", e)
                 _actionError.value = e.localizedMessage ?: "MindGPT could not generate a reply."
             } finally {
                 _isGenerating.value = false
@@ -243,6 +317,16 @@ class ChatViewModel(
                 val merged = "$prefix\n${continuation.toString().trim()}"
                 repository.updateMessageContent(chatId, assistantMessage.id, merged)
                 repository.updateChatSummary(chatId, merged.take(180), currentMessages.size.toLong())
+            } catch (e: PartialStreamTimeoutException) {
+                if (e.partialText.isNotBlank()) {
+                    val prefix = assistantMessage.content.trimEnd()
+                    val merged = "$prefix\n${e.partialText}\n\n*(Paused — tap Continue to finish)*"
+                    repository.updateMessageContent(chatId, assistantMessage.id, merged)
+                    repository.updateChatSummary(chatId, merged.take(180), currentMessages.size.toLong())
+                    _infoMessage.value = "Continuation paused; tap Continue again to finish."
+                } else {
+                    _actionError.value = e.localizedMessage ?: "Continuation timed out."
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -267,6 +351,7 @@ class ChatViewModel(
         val precedingUser = messages.subList(0, idx).lastOrNull { it.role == "user" } ?: return
         val historyBeforeUser = messages.subList(0, messages.indexOf(precedingUser))
 
+        _actionError.value = null
         generationJob = viewModelScope.launch {
             _isGenerating.value = true
             _streamingChatId.value = chatId
@@ -283,6 +368,15 @@ class ChatViewModel(
                     repository.updateMessageContent(chatId, assistantMessage.id, finalText)
                     repository.updateMessageFeedback(chatId, assistantMessage.id, "none")
                     repository.updateChatSummary(chatId, finalText.take(180), messages.size.toLong())
+                }
+            } catch (e: PartialStreamTimeoutException) {
+                if (e.partialText.isNotBlank()) {
+                    val saved = "${e.partialText}\n\n*(Paused — tap Continue to finish)*"
+                    repository.updateMessageContent(chatId, assistantMessage.id, saved)
+                    repository.updateChatSummary(chatId, e.partialText.take(180), messages.size.toLong())
+                    _infoMessage.value = "Response paused; tap Continue to finish."
+                } else {
+                    _actionError.value = e.localizedMessage ?: "Regenerate timed out."
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -305,6 +399,7 @@ class ChatViewModel(
         val userIdx = messages.indexOfFirst { it.id == userMessage.id }
         if (userIdx < 0) return
 
+        _actionError.value = null
         generationJob = viewModelScope.launch {
             _isGenerating.value = true
             _streamingChatId.value = chatId
@@ -326,6 +421,15 @@ class ChatViewModel(
                 if (finalText.isNotEmpty()) {
                     repository.addMessage(chatId, "model", finalText, userMessage.toolTag)
                     repository.updateChatSummary(chatId, finalText.take(180), (historyBefore.size + 2).toLong())
+                }
+            } catch (e: PartialStreamTimeoutException) {
+                if (e.partialText.isNotBlank()) {
+                    val saved = "${e.partialText}\n\n*(Paused — tap Continue to finish)*"
+                    repository.addMessage(chatId, "model", saved, userMessage.toolTag)
+                    repository.updateChatSummary(chatId, e.partialText.take(180), (userIdx + 2).toLong())
+                    _infoMessage.value = "Response paused; tap Continue to finish."
+                } else {
+                    _actionError.value = e.localizedMessage ?: "Generation timed out."
                 }
             } catch (e: CancellationException) {
                 throw e

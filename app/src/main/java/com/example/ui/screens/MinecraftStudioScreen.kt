@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,12 +62,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.R
 import com.example.core.ExportHelper
 import com.example.core.TtsHelper
@@ -145,8 +145,11 @@ fun MinecraftStudioScreen(
                         .height(152.dp)
                         .clip(MaterialTheme.shapes.large)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_studio_banner),
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(R.drawable.img_studio_banner)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "Minecraft Studio Diorama",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

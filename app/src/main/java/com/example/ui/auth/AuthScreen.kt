@@ -1,7 +1,6 @@
 package com.example.ui.auth
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,11 +39,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.R
 import com.example.ui.components.MindGptFooter
 import com.example.ui.theme.PixelDisplayFont
@@ -53,6 +54,7 @@ import com.example.ui.theme.PixelDisplayFont
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
 ) {
+    val context = LocalContext.current
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Box(
@@ -60,8 +62,11 @@ fun AuthScreen(
             .fillMaxSize()
             .background(Color(0xFF09120D))
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.img_splash_world),
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(R.drawable.img_splash_world)
+                .crossfade(true)
+                .build(),
             contentDescription = "Minecraft voxel twilight landscape",
             contentScale = ContentScale.Crop,
             alpha = 0.45f,
@@ -98,8 +103,11 @@ fun AuthScreen(
                 modifier = Modifier.widthIn(max = 480.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_launcher_foreground),
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(R.drawable.img_launcher_foreground)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = "MindGPT Emblem",
                     modifier = Modifier
                         .size(88.dp)
